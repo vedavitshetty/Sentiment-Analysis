@@ -1,0 +1,132 @@
+---
+title: "Sentiment Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+library(tidytext)
+sentiments
+get_sentiments("bing")
+```
+
+```{r}
+library(janeaustenr) # textual data of Jane Austen's books
+library(stringr)
+library(tidytext) # efficient text analysis on our data
+library(dplyr) 
+tidy_data <- austen_books() %>%
+ group_by(book) %>%
+ mutate(linenumber = row_number(),
+   chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", 
+                          ignore_case = TRUE)))) %>%
+ungroup() %>%
+unnest_tokens(word, text) #convert the text of our books into a tidy format
+```
+
+```{r}
+positive_sentiment <- get_sentiments("bing") %>%
+ filter(sentiment == "positive")
+tidy_data %>%
+ filter(book == "Pride & Prejudice") %>%
+ semi_join(positive_sentiment) %>%
+ count(word, sort = TRUE)
+```
+
+```{r}
+negative_sentiment <- get_sentiments("bing") %>%
+ filter(sentiment == "negative")
+tidy_data %>%
+ filter(book == "Pride & Prejudice") %>%
+ semi_join(negative_sentiment) %>%
+ count(word, sort = TRUE)
+```
+
+```{r}
+library(tidyr)
+bing <- get_sentiments("bing")
+Pride_Predjudice_sentiment <- tidy_data %>%
+ inner_join(bing) %>%
+ count(book = "Pride & Prejudice" , index = linenumber %/% 80, sentiment) %>%
+ spread(sentiment, n, fill = 0) %>% #separate columns by sentiment
+ mutate(sentiment = positive - negative)#calculate total sentiment
+```
+
+```{r}
+library(ggplot2)
+ggplot(Pride_Predjudice_sentiment, aes(index, sentiment, fill = book)) +
+ geom_bar(stat = "identity", show.legend = TRUE) +
+ facet_wrap(~book, ncol = 2, scales = "free_x")
+```
+
+
+```{r}
+counting_words <- tidy_data %>%
+ inner_join(bing) %>%
+ count(word, sentiment, sort = TRUE)
+head(counting_words)
+```
+
+```{r}
+counting_words %>%
+ filter(n > 200) %>%
+ mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+ mutate(word = reorder(word, n)) %>%
+ ggplot(aes(word, n, fill = sentiment))+
+ geom_col() +
+ coord_flip() +
+ labs(y = "Sentiment Score")
+```
+
+```{r}
+library(reshape2)
+library(wordcloud)
+
+tidy_data %>%
+ inner_join(bing) %>%
+ count(word, sentiment, sort = TRUE) %>%
+ acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+ comparison.cloud(colors = c("red", "blue"),
+          max.words = 100)
+```
+
+```{r}
+library(gutenbergr)
+dickens <- gutenberg_download(c(98, 1400, 46, 730, 786))
+tidy_dickens <- dickens %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+bing_word_counts <- tidy_dickens %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+bing_word_counts
+```
+
+
+
+
+```{r}
+bing_word_counts %>%
+ filter(n > 130) %>%
+ mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+ mutate(word = reorder(word, n)) %>%
+ ggplot(aes(word, n, fill = sentiment))+
+ geom_col() +
+ coord_flip() +
+ labs(y = "Sentiment Score")
+
+```
+
+```{r}
+tidy_dickens %>%
+ inner_join(bing) %>%
+ count(word, sentiment, sort = TRUE) %>%
+ acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+ comparison.cloud(colors = c("red", "blue"),
+          max.words = 100)
+```
+
+
